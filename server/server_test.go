@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/juju/errors"
 	mysql "github.com/siddontang/go-mysql/mysql"
 	. "gopkg.in/check.v1"
+	"crypto/tls"
 )
 
 var testAddr = flag.String("addr", "127.0.0.1:4000", "MySQL proxy server address")
@@ -120,7 +121,7 @@ func (s *serverTestSuite) SetUpSuite(c *C) {
 
 	go s.onAccept(c)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	s.db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s", *testUser, *testPassword, *testAddr, *testDB))
 	c.Assert(err, IsNil)
@@ -224,3 +225,21 @@ func (s *serverTestSuite) TestStmtExec(c *C) {
 	i, _ = r.RowsAffected()
 	c.Assert(i, Equals, int64(1))
 }
+
+func (s *serverTestSuite) TestSSL(c *C) {
+	mysqldriver.RegisterTLSConfig("server-test-suite",&tls.Config{
+		InsecureSkipVerify:true,
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?tls=server-test-suite", *testUser, *testPassword, *testAddr, *testDB))
+	c.Assert(err, IsNil)
+
+	var a int
+	var b string
+
+	err = db.QueryRow("SELECT 1").Scan(&a,&b)
+	c.Assert(err, IsNil)
+	c.Assert(a, Equals, int(1))
+}
+
+

@@ -3,14 +3,16 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
-
+	"crypto/tls"
 	. "github.com/siddontang/go-mysql/mysql"
+	"github.com/siddontang/go-mysql/packet"
+	"errors"
 )
 
 func (c *Conn) writeInitialHandshake() error {
 	capability := CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG |
 		CLIENT_CONNECT_WITH_DB | CLIENT_PROTOCOL_41 |
-		CLIENT_TRANSACTIONS | CLIENT_SECURE_CONNECTION
+		CLIENT_TRANSACTIONS | CLIENT_SECURE_CONNECTION | CLIENT_SSL
 
 	data := make([]byte, 4, 128)
 
@@ -77,6 +79,27 @@ func (c *Conn) readHandshakeResponse(password string) error {
 	//charset, skip, if you want to use another charset, use set names
 	//c.collation = CollationId(data[pos])
 	pos++
+
+	encrypted := false
+	switch c.Conn.Conn.(type) {
+	case *tls.Conn:
+		encrypted = true
+	}
+
+	if (c.capability & CLIENT_SSL > 0)  && !encrypted {
+		if err != nil {
+			msg := "unable to decode keypair"
+			return errors.New(msg)
+		}
+		conn := tls.Server(c.Conn.Conn, packet.ListenConfig)
+
+		err = conn.Handshake(); if err != nil {
+			return err
+		}
+		c.Conn = packet.NewConn(conn)
+		c.Sequence = 2
+		return c.readHandshakeResponse(password)
+	}
 
 	//skip reserved 23[00]
 	pos += 23
