@@ -8,6 +8,13 @@ import (
 
 	"github.com/juju/errors"
 	. "github.com/siddontang/go-mysql/mysql"
+	"fmt"
+	"encoding/hex"
+)
+
+var (
+	DumpPackets bool
+	DumpPacketsTo io.Writer
 )
 
 /*
@@ -16,69 +23,54 @@ import (
 type Conn struct {
 	net.Conn
 	br *bufio.Reader
-
 	Sequence uint8
 }
 
 func NewConn(conn net.Conn) *Conn {
 	c := new(Conn)
-
-	c.br = bufio.NewReaderSize(conn, 4096)
 	c.Conn = conn
-
 	return c
+}
+
+func NewFrom(conn net.Conn, oldConn *Conn) *Conn {
+	c := new(Conn)
+	c.Conn = conn
+	return c
+}
+
+func (c *Conn) EnableBuffer() error {
+	if c.br != nil {
+		// should only be enabled once, after TLS upgrade
+		return errors.New("buffer already enabled")
+	}
+	c.br = bufio.NewReaderSize(c.Conn, 4096)
+	return nil
 }
 
 func (c *Conn) ReadPacket() ([]byte, error) {
 	var buf bytes.Buffer
-
 	if err := c.ReadPacketTo(&buf); err != nil {
 		return nil, errors.Trace(err)
 	} else {
+		if (DumpPackets && DumpPacketsTo != nil) {
+			fmt.Fprintf(DumpPacketsTo,"<< Reading sequence #%d:\n", c.Sequence)
+			fmt.Fprint(DumpPacketsTo,hex.Dump(buf.Bytes()))
+		}
 		return buf.Bytes(), nil
 	}
-
-	// header := []byte{0, 0, 0, 0}
-
-	// if _, err := io.ReadFull(c.br, header); err != nil {
-	// 	return nil, ErrBadConn
-	// }
-
-	// length := int(uint32(header[0]) | uint32(header[1])<<8 | uint32(header[2])<<16)
-	// if length < 1 {
-	// 	return nil, fmt.Errorf("invalid payload length %d", length)
-	// }
-
-	// sequence := uint8(header[3])
-
-	// if sequence != c.Sequence {
-	// 	return nil, fmt.Errorf("invalid sequence %d != %d", sequence, c.Sequence)
-	// }
-
-	// c.Sequence++
-
-	// data := make([]byte, length)
-	// if _, err := io.ReadFull(c.br, data); err != nil {
-	// 	return nil, ErrBadConn
-	// } else {
-	// 	if length < MaxPayloadLen {
-	// 		return data, nil
-	// 	}
-
-	// 	var buf []byte
-	// 	buf, err = c.ReadPacket()
-	// 	if err != nil {
-	// 		return nil, ErrBadConn
-	// 	} else {
-	// 		return append(data, buf...), nil
-	// 	}
-	// }
 }
 
 func (c *Conn) ReadPacketTo(w io.Writer) error {
 	header := []byte{0, 0, 0, 0}
 
-	if _, err := io.ReadFull(c.br, header); err != nil {
+	var br io.Reader
+	br = c.Conn
+	// if buffer is enabled, read from it instead
+	if c.br != nil {
+		br = c.br
+	}
+
+	if _, err := io.ReadFull(br, header); err != nil {
 		return ErrBadConn
 	}
 
@@ -95,7 +87,7 @@ func (c *Conn) ReadPacketTo(w io.Writer) error {
 
 	c.Sequence++
 
-	if n, err := io.CopyN(w, c.br, int64(length)); err != nil {
+	if n, err := io.CopyN(w, br, int64(length)); err != nil {
 		return ErrBadConn
 	} else if n != int64(length) {
 		return ErrBadConn
@@ -116,6 +108,11 @@ func (c *Conn) ReadPacketTo(w io.Writer) error {
 // will modify data inplace
 func (c *Conn) WritePacket(data []byte) error {
 	length := len(data) - 4
+
+	if (DumpPackets && DumpPacketsTo != nil) {
+		fmt.Fprintf(DumpPacketsTo, ">> Writing sequence #%d:\n", c.Sequence)
+		fmt.Fprint(DumpPacketsTo, hex.Dump(data))
+	}
 
 	for length >= MaxPayloadLen {
 		data[0] = 0xff

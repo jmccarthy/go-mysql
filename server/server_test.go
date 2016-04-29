@@ -8,12 +8,16 @@ import (
 	"strings"
 	"testing"
 	"time"
-
+	_ "net/http/pprof"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/juju/errors"
 	mysql "github.com/siddontang/go-mysql/mysql"
 	. "gopkg.in/check.v1"
 	"crypto/tls"
+	"math/rand"
+	"sync"
+	"github.com/siddontang/go-mysql/packet"
+	"os"
 )
 
 var testAddr = flag.String("addr", "127.0.0.1:4000", "MySQL proxy server address")
@@ -151,7 +155,7 @@ func (s *serverTestSuite) onAccept(c *C) {
 }
 
 func (s *serverTestSuite) onConn(conn net.Conn, c *C) {
-	co, err := NewConn(conn, *testUser, *testPassword, &testHandler{s})
+	co, err := NewConn(conn, *testUser, *testPassword, &testHandler{s}, nil)
 	c.Assert(err, IsNil)
 
 	for {
@@ -227,19 +231,43 @@ func (s *serverTestSuite) TestStmtExec(c *C) {
 }
 
 func (s *serverTestSuite) TestSSL(c *C) {
-	mysqldriver.RegisterTLSConfig("server-test-suite",&tls.Config{
+	packet.DumpPackets = true
+	packet.DumpPacketsTo = os.Stdout
+
+	mysqldriver.RegisterTLSConfig("server-test-suite", &tls.Config{
 		InsecureSkipVerify:true,
 	})
 
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?tls=server-test-suite", *testUser, *testPassword, *testAddr, *testDB))
 	c.Assert(err, IsNil)
-
-	var a int
-	var b string
-
-	err = db.QueryRow("SELECT 1").Scan(&a,&b)
+	err = db.Ping()
 	c.Assert(err, IsNil)
-	c.Assert(a, Equals, int(1))
+	db.Close()
 }
 
+
+func (s *serverTestSuite) TestSSLBasicConcurrency(c *C) {
+	packet.DumpPackets = true
+	packet.DumpPacketsTo = os.Stdout
+
+	mysqldriver.RegisterTLSConfig("server-test-suite", &tls.Config{
+		InsecureSkipVerify:true,
+	})
+
+	var wg sync.WaitGroup
+	for i:=0;i<50;i++ {
+		wg.Add(1)
+		go func() {
+			// random stagger
+			time.Sleep(time.Millisecond * time.Duration(0 + rand.Intn(100)))
+			db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?tls=server-test-suite", *testUser, *testPassword, *testAddr, *testDB))
+			c.Assert(err, IsNil)
+			err = db.Ping()
+			c.Assert(err, IsNil)
+			db.Close()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
 

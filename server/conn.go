@@ -7,6 +7,7 @@ import (
 	. "github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/packet"
 	"github.com/siddontang/go/sync2"
+	"crypto/tls"
 )
 
 /*
@@ -14,6 +15,8 @@ import (
 */
 type Conn struct {
 	*packet.Conn
+
+	tlsConfig *tls.Config
 
 	capability uint32
 
@@ -35,27 +38,22 @@ type Conn struct {
 
 var baseConnID uint32 = 10000
 
-func NewConn(conn net.Conn, user string, password string, h Handler) (*Conn, error) {
+func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config) (*Conn, error) {
 	c := new(Conn)
-
 	c.h = h
-
+	if (tlsConfig == nil) {
+		c.tlsConfig = packet.CloneTLSConfig(packet.DefaultListenConfig)
+	}
 	c.user = user
 	c.Conn = packet.NewConn(conn)
-
 	c.connectionID = atomic.AddUint32(&baseConnID, 1)
-
 	c.stmts = make(map[uint32]*Stmt)
-
 	c.salt, _ = RandomBuf(20)
-
 	c.closed.Set(false)
-
 	if err := c.handshake(password); err != nil {
 		c.Close()
 		return nil, err
 	}
-
 	return c, nil
 }
 
@@ -66,7 +64,6 @@ func (c *Conn) handshake(password string) error {
 
 	if err := c.readHandshakeResponse(password); err != nil {
 		c.writeError(err)
-
 		return err
 	}
 

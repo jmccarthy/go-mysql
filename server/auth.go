@@ -56,7 +56,6 @@ func (c *Conn) writeInitialHandshake() error {
 
 	//filter [00]
 	data = append(data, 0)
-
 	return c.WritePacket(data)
 }
 
@@ -91,15 +90,18 @@ func (c *Conn) readHandshakeResponse(password string) error {
 			msg := "unable to decode keypair"
 			return errors.New(msg)
 		}
-		conn := tls.Server(c.Conn.Conn, packet.ListenConfig)
 
-		err = conn.Handshake(); if err != nil {
+		conn := tls.Server(c.Conn.Conn, c.tlsConfig)
+		if err := conn.Handshake(); err != nil {
 			return err
 		}
-		c.Conn = packet.NewConn(conn)
+		c.Conn = packet.NewFrom(conn,c.Conn)
 		c.Sequence = 2
 		return c.readHandshakeResponse(password)
 	}
+
+	// enable buffered IO once optional TLS negotiation is complete
+	c.EnableBuffer()
 
 	//skip reserved 23[00]
 	pos += 23
