@@ -85,6 +85,10 @@ func (c *Conn) readHandshakeResponse(password string) error {
 		encrypted = true
 	}
 
+	if (c.capability & CLIENT_SSL > 0) && c.tlsConfig == nil {
+		return errors.New("client requested TLS, but no server configuration is present")
+	}
+
 	if (c.capability & CLIENT_SSL > 0)  && !encrypted {
 		if err != nil {
 			msg := "unable to decode keypair"

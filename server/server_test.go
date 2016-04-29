@@ -155,7 +155,7 @@ func (s *serverTestSuite) onAccept(c *C) {
 }
 
 func (s *serverTestSuite) onConn(conn net.Conn, c *C) {
-	co, err := NewConn(conn, *testUser, *testPassword, &testHandler{s}, nil)
+	co, err := NewConn(conn, *testUser, *testPassword, &testHandler{s}, packet.DefaultListenConfig)
 	c.Assert(err, IsNil)
 
 	for {

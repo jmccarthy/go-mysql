@@ -41,9 +41,7 @@ var baseConnID uint32 = 10000
 func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config) (*Conn, error) {
 	c := new(Conn)
 	c.h = h
-	if (tlsConfig == nil) {
-		c.tlsConfig = packet.CloneTLSConfig(packet.DefaultListenConfig)
-	}
+	c.tlsConfig = tlsConfig
 	c.user = user
 	c.Conn = packet.NewConn(conn)
 	c.connectionID = atomic.AddUint32(&baseConnID, 1)

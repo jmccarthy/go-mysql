@@ -9,10 +9,13 @@ import (
 	"github.com/juju/errors"
 	. "github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/packet"
+	"crypto/tls"
 )
 
 type Conn struct {
 	*packet.Conn
+
+	tlsConfig *tls.Config
 
 	user     string
 	password string
