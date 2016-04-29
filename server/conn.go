@@ -38,13 +38,17 @@ type Conn struct {
 
 var baseConnID uint32 = 10000
 
-func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config) (*Conn, error) {
+func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config, connectionId uint32) (*Conn, error) {
 	c := new(Conn)
 	c.h = h
 	c.tlsConfig = tlsConfig
 	c.user = user
 	c.Conn = packet.NewConn(conn)
-	c.connectionID = atomic.AddUint32(&baseConnID, 1)
+	if connectionId > 0 {
+		c.connectionID = connectionId
+	} else {
+		c.connectionID = atomic.AddUint32(&baseConnID, 1)
+	}
 	c.stmts = make(map[uint32]*Stmt)
 	c.salt, _ = RandomBuf(20)
 	c.closed.Set(false)

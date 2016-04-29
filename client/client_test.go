@@ -345,7 +345,7 @@ func (s *clientTestSuite) TestClientSSL(c *C) {
 		conn, err := listener.Accept()
 		c.Assert(err, IsNil)
 
-		serverConn, err := server.NewConn(conn,"foo","bar",&testHandler{},packet.DefaultListenConfig)
+		serverConn, err := server.NewConn(conn,"foo","bar",&testHandler{},packet.DefaultListenConfig,0)
 		c.Assert(err, IsNil)
 
 		err = serverConn.HandleCommand()
