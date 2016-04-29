@@ -6,6 +6,8 @@ import (
 
 	"github.com/juju/errors"
 	. "github.com/siddontang/go-mysql/mysql"
+	"crypto/tls"
+	"github.com/siddontang/go-mysql/packet"
 )
 
 func (c *Conn) readInitialHandshake() error {
@@ -74,6 +76,10 @@ func (c *Conn) writeAuthHandshake() error {
 
 	capability &= c.capability
 
+	if c.tlsConfig != nil {
+		capability |= CLIENT_SSL
+	}
+
 	//packet length
 	//capbility 4
 	//max-packet size 4
@@ -114,6 +120,40 @@ func (c *Conn) writeAuthHandshake() error {
 	//Charset [1 byte]
 	//use default collation id 33 here, is utf-8
 	data[12] = byte(DEFAULT_COLLATION_ID)
+
+	// SSL Connection Request Packet
+	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
+	if c.tlsConfig != nil {
+		// Send TLS / SSL request packet
+		if err := c.Conn.WritePacket(data[:(4+4+1+23)+4]); err != nil {
+			return err
+		}
+
+		// Switch to TLS
+		tlsConn := tls.Client(c.Conn, c.tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			return err
+		}
+
+		c.Conn = packet.NewConn(tlsConn)
+		c.Sequence = 2
+	}
+
+	// enable buffered IO once optional TLS negotiation is complete
+	c.EnableBuffer()
+
+	//conn := tls.Server(c.Conn.Conn, c.tlsConfig)
+	//if err := conn.Handshake(); err != nil {
+	//	return err
+	//}
+	//c.Conn = packet.NewFrom(conn,c.Conn)
+	//c.Sequence = 2
+	//return c.readHandshakeResponse(password)
+
+
+
+
+
 
 	//Filler [23 bytes] (all 0x00)
 	pos := 13 + 23

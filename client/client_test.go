@@ -8,9 +8,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/siddontang/go-mysql/mysql"
+	"net"
+	"sync"
+	"github.com/siddontang/go-mysql/server"
+	"github.com/siddontang/go-mysql/packet"
 )
 
-var testAddr = flag.String("addr", "127.0.0.1:3306", "MySQL server address")
+var testAddr = flag.String("addr", "127.0.0.1:3307", "MySQL server address")
+var testTLSServerAddr = flag.String("server", "127.0.0.1:4000", "MySQL server address")
 var testUser = flag.String("user", "root", "MySQL user")
 var testPassword = flag.String("pass", "", "MySQL password")
 var testDB = flag.String("db", "test", "MySQL test database")
@@ -27,7 +32,7 @@ var _ = Suite(&clientTestSuite{})
 
 func (s *clientTestSuite) SetUpSuite(c *C) {
 	var err error
-	s.c, err = Connect(*testAddr, *testUser, *testPassword, *testDB)
+	s.c, err = Connect(*testAddr, *testUser, *testPassword, *testDB, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -329,3 +334,58 @@ func (s *clientTestSuite) TestStmt_Trans(c *C) {
 	str, _ = r.GetString(0, 0)
 	c.Assert(str, Equals, `abc`)
 }
+
+func (s *clientTestSuite) TestClientSSL(c *C) {
+	listener, err := net.Listen("tcp", *testTLSServerAddr)
+	c.Assert(err, IsNil)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func()  {
+		conn, err := listener.Accept()
+		c.Assert(err, IsNil)
+
+		serverConn, err := server.NewConn(conn,"foo","bar",&testHandler{},packet.DefaultListenConfig)
+		c.Assert(err, IsNil)
+
+		err = serverConn.HandleCommand()
+		c.Assert(err, IsNil)
+
+		wg.Done()
+	}()
+
+	clientConn, err := Connect(*testTLSServerAddr,"foo","bar","test",packet.DefaultDialConfig)
+	c.Assert(err, IsNil)
+
+	err = clientConn.Ping()
+	c.Assert(err, IsNil)
+
+	wg.Wait()
+}
+
+
+
+
+type testHandler struct {
+}
+
+func (h *testHandler) UseDB(dbName string) error {
+	return nil
+}
+
+func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
+	return nil, nil
+}
+
+func (h *testHandler) HandleFieldList(table string, fieldWildcard string) ([]*mysql.Field, error) {
+	return nil, nil
+}
+
+func (h *testHandler) HandleStmtPrepare(sql string) (params int, columns int, ctx interface{}, err error) {
+	return 0, 0, nil, nil
+}
+
+func (h *testHandler) HandleStmtExecute(ctx interface{}, query string, args []interface{}) (*mysql.Result, error) {
+	return nil, nil
+}
+

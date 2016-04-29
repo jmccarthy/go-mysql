@@ -32,12 +32,6 @@ func NewConn(conn net.Conn) *Conn {
 	return c
 }
 
-func NewFrom(conn net.Conn, oldConn *Conn) *Conn {
-	c := new(Conn)
-	c.Conn = conn
-	return c
-}
-
 func (c *Conn) EnableBuffer() error {
 	if c.br != nil {
 		// should only be enabled once, after TLS upgrade

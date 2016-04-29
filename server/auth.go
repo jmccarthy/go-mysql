@@ -99,7 +99,7 @@ func (c *Conn) readHandshakeResponse(password string) error {
 		if err := conn.Handshake(); err != nil {
 			return err
 		}
-		c.Conn = packet.NewFrom(conn,c.Conn)
+		c.Conn = packet.NewConn(conn)
 		c.Sequence = 2
 		return c.readHandshakeResponse(password)
 	}

@@ -41,10 +41,11 @@ func getNetProto(addr string) string {
 }
 
 // Connect to a MySQL server, addr can be ip:port, or a unix socket domain like /var/sock.
-func Connect(addr string, user string, password string, dbName string) (*Conn, error) {
+func Connect(addr string, user string, password string, dbName string, tlsConfig *tls.Config) (*Conn, error) {
 	proto := getNetProto(addr)
 
 	c := new(Conn)
+	c.tlsConfig = tlsConfig
 
 	var err error
 	conn, err := net.DialTimeout(proto, addr, 10*time.Second)
