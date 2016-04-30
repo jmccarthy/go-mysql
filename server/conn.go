@@ -16,6 +16,8 @@ import (
 type Conn struct {
 	*packet.Conn
 
+	authenticator Authenticator
+
 	tlsConfig *tls.Config
 
 	capability uint32
@@ -38,11 +40,12 @@ type Conn struct {
 
 var baseConnID uint32 = 10000
 
-func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config, connectionId uint32) (*Conn, error) {
+func NewConn(conn net.Conn, user string, password string, h Handler, tlsConfig *tls.Config, connectionId uint32, authenticator Authenticator) (*Conn, error) {
 	c := new(Conn)
 	c.h = h
 	c.tlsConfig = tlsConfig
 	c.user = user
+	c.authenticator = authenticator
 	c.Conn = packet.NewConn(conn)
 	if connectionId > 0 {
 		c.connectionID = connectionId

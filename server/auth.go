@@ -9,6 +9,11 @@ import (
 	"errors"
 )
 
+type Authenticator interface {
+	ValidUser(user string) bool
+	Authenticate(user string, password string) bool
+}
+
 func (c *Conn) writeInitialHandshake() error {
 	capability := CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG |
 		CLIENT_CONNECT_WITH_DB | CLIENT_PROTOCOL_41 |
@@ -114,7 +119,14 @@ func (c *Conn) readHandshakeResponse(password string) error {
 	user := string(data[pos : pos+bytes.IndexByte(data[pos:], 0)])
 	pos += len(user) + 1
 
-	if c.user != user {
+	valid := false
+	if c.authenticator != nil {
+		valid = c.authenticator.ValidUser(user)
+	} else if c.user == user {
+		valid = true
+	}
+
+	if !valid {
 		return NewDefaultError(ER_NO_SUCH_USER, user, c.RemoteAddr().String())
 	}
 
@@ -123,9 +135,17 @@ func (c *Conn) readHandshakeResponse(password string) error {
 	pos++
 	auth := data[pos : pos+authLen]
 
-	checkAuth := CalcPassword(c.salt, []byte(password))
+	valid = false
+	if c.authenticator != nil {
+		valid = c.authenticator.Authenticate(user,string(auth))
+	} else {
+		checkAuth := CalcPassword(c.salt, []byte(password))
+		if bytes.Equal(auth, checkAuth) {
+			valid = true
+		}
+	}
 
-	if !bytes.Equal(auth, checkAuth) {
+	if !valid {
 		return NewDefaultError(ER_ACCESS_DENIED_ERROR, c.RemoteAddr().String(), c.user, "Yes")
 	}
 
