@@ -76,7 +76,7 @@ func (c *Conn) writeAuthHandshake() error {
 
 	capability &= c.capability
 
-	if c.tlsConfig != nil {
+	if c.tlsConfig != nil && c.capability & CLIENT_SSL > 0 {
 		capability |= CLIENT_SSL
 	}
 
@@ -123,7 +123,7 @@ func (c *Conn) writeAuthHandshake() error {
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
-	if c.tlsConfig != nil {
+	if c.tlsConfig != nil && capability & CLIENT_SSL > 0{
 		// Send TLS / SSL request packet
 		if err := c.Conn.WritePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
