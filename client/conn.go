@@ -43,16 +43,18 @@ func getNetProto(addr string) string {
 // Connect to a MySQL server, addr can be ip:port, or a unix socket domain like /var/sock.
 func Connect(addr string, user string, password string, dbName string, tlsConfig *tls.Config) (*Conn, error) {
 	proto := getNetProto(addr)
-
-	c := new(Conn)
-	c.tlsConfig = tlsConfig
-
 	var err error
 	conn, err := net.DialTimeout(proto, addr, 10*time.Second)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	return ConnectDialed(conn, addr, user, password, dbName, tlsConfig)
+}
 
+// Connect to a MySQL server, addr can be ip:port, or a unix socket domain like /var/sock.
+func ConnectDialed(conn net.Conn, addr string, user string, password string, dbName string, tlsConfig *tls.Config) (*Conn, error) {
+	c := new(Conn)
+	c.tlsConfig = tlsConfig
 	c.Conn = packet.NewConn(conn)
 	c.user = user
 	c.password = password
@@ -61,6 +63,7 @@ func Connect(addr string, user string, password string, dbName string, tlsConfig
 	//use default charset here, utf-8
 	c.charset = DEFAULT_CHARSET
 
+	var err error
 	if err = c.handshake(); err != nil {
 		return nil, errors.Trace(err)
 	}
