@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-
 	. "github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go/hack"
 )
@@ -36,6 +35,13 @@ func (c *Conn) HandleCommand() error {
 	}
 
 	v := c.dispatch(data)
+
+	err, ok := v.(error)
+	if ok {
+		if err.Error() == ErrBadConn.Error() {
+			return err
+		}
+	}
 
 	err = c.writeValue(v)
 
